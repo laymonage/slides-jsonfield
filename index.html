@@ -1,0 +1,1569 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <title>Implementing a Cross-DB JSONField</title>
+
+    <link rel="stylesheet" href="dist/reset.css">
+    <link rel="stylesheet" href="dist/reveal.css">
+    <link rel="stylesheet" href="dist/theme/sage.css" id="theme">
+
+    <!-- Theme used for syntax highlighted code -->
+    <link rel="stylesheet" href="plugin/highlight/monokai.css" id="highlight-theme">
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section data-markdown>
+          <textarea data-template>
+            ## Implementing
+
+            ### a Cross-DB
+
+            ## **`JSONField`**
+          </textarea>
+        </section>
+        <section>
+          <section
+            data-auto-animate
+            data-markdown>
+            <textarea data-template>
+              ### `background`
+            </textarea>
+          </section>
+          <section
+            data-auto-animate
+            data-background-image="assets/ui.jpeg"
+            data-background-opacity="0.42"
+            data-markdown
+            >
+            <textarea data-template>
+              ### `background`
+            </textarea>
+          </section>
+          <section
+            class="full"
+            data-auto-animate
+            data-background-image="assets/ui.jpeg"
+            data-background-opacity="0.15"
+            >
+            <pre><code data-line-numbers="2|3|5|8-13|15" data-trim>
+              {
+                "name": "Sage M. Abdullah",
+                "background": "Computer Science student at Universitas Indonesia",
+                "roles": {
+                  "django": {"user": true, "contributor": true}
+                },
+                "experiences": [
+                  {
+                    "title": "Google Summer of Code",
+                    "year": 2019,
+                    "organization": "Django Software Foundation",
+                    "project": "Cross-DB JSONField"
+                  }
+                ],
+                "username": "laymonage"
+              }
+            </code></pre>
+          </section>
+        </section>
+        <section>
+          <section
+            data-auto-animate
+            data-background-image="assets/jason.png"
+            data-background-opacity="0.25"
+            >
+              <h2 style="font-family: monospace;">J<span data-id="a-funny" style="font-size: inherit;">A</span>SONField</h2>
+          </section>
+          <section data-auto-animate>
+              <h2 style="font-family: monospace;">J<span data-id="a-funny" style="font-size: 0;">A</span>SONField</h2>
+          </section>
+          <section data-auto-animate>
+              <h2 style="font-family: monospace;">J<span data-id="a-funny" style="font-size: 0;">A</span>SONField</h2>
+              <p>“A field for storing JSON-encoded data.”</p>
+          </section>
+          <section data-auto-animate>
+              <h2 style="font-family: monospace;">J<span data-id="a-funny" style="font-size: 0;">A</span>SONField</h2>
+              <p>“A field for storing JSON-encoded data.”</p>
+
+              <p><small>In Python, represented as:</small></p>
+
+              <ul class="compact">
+                <li class="fragment" data-fragment-index="1"><strong><code>dict</code></strong></li>
+                <li class="fragment" data-fragment-index="2"><strong><code>list</code></strong></li>
+                <li class="fragment" data-fragment-index="3"><code>str</code></li>
+                <li class="fragment" data-fragment-index="3"><code>int</code></li>
+                <li class="fragment" data-fragment-index="3"><code>float</code></li>
+                <li class="fragment" data-fragment-index="3"><code>bool</code></li>
+                <li class="fragment" data-fragment-index="3"><code>None</code></li>
+              </ul>
+          </section>
+        </section>
+        <section>
+          <section data-auto-animate>
+            <h2>JSON<span data-id="encoded" style="font-size: inherit;">-encoded</span> data</h2>
+          </section>
+          <section data-auto-animate>
+            <h2>JSON<span data-id="encoded" style="font-size: 0;">-encoded</span> data</h2>
+
+            <pre data-id="code"><code data-line-numbers="1-10|2|3|4|5|6-9|7-8" data-trim>
+              {
+                "name": "Sage",
+                "active": true,
+                "age": 21,
+                "height": 170.0,
+                "interests": [
+                  {"hobbies": ["reading", "coding"]},
+                  {"others": ["cats", 42]}
+                ]
+              }
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>JSON<span data-id="encoded" style="font-size: 0;">-encoded</span> data</h2>
+
+            <pre data-id="code"><code data-line-numbers="10|1-11" data-trim>
+              {
+                "name": "Sage",
+                "active": true,
+                "age": 21,
+                "height": 170.0,
+                "interests": [
+                  {"hobbies": ["reading", "coding"]},
+                  {"others": ["cats", 42]}
+                ],
+                "partner": null
+              }
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>JSON<span data-id="encoded" style="color:deepskyblue; font-size: inherit;">-encoded</span> data</h2>
+
+            <pre data-id="code"><code data-line-numbers data-trim class="python">
+              # This is in Python
+              data = '''{
+                "name": "Sage",
+                "active": true,
+                "age": 21,
+                "height": 170.0,
+                "interests": [
+                  {"hobbies": ["reading", "coding"]},
+                  {"others": ["cats", 42]}
+                ],
+                "partner": null
+              }'''
+            </code></pre>
+          </section>
+        </section>
+        <section>
+          <section data-auto-animate>
+            <h2>Databases</h2>
+          </section>
+          <section data-auto-animate>
+            <h2>Databases</h2>
+
+            <div style="display: flex; justify-content: space-between;">
+              <pre data-id="code" style="flex: 1;"><code data-line-numbers data-trim class="python">
+                class Profile(models.Model):
+                    user = models.ForeignKey(User, on_delete=models.CASCADE)
+                    status = models.CharField(max_length=255)
+                    last_sync = models.DateTimeField(auto_now=True)
+              </code></pre>
+            </div>
+          </section>
+          <section data-auto-animate>
+            <h2>Databases</h2>
+
+            <div style="display: flex; justify-content: space-between; font-size: 1.5rem;">
+              <pre data-id="code" style="flex: 1.3;"><code data-line-numbers data-trim class="python">
+                class Profile(models.Model):
+                    user = models.ForeignKey(User, on_delete=models.CASCADE)
+                    status = models.CharField(max_length=255)
+                    last_sync = models.DateTimeField(auto_now=True)
+              </code></pre>
+
+              <table
+                data-id="table"
+                style="flex: 1; margin-left: 2rem; font-family: monospace; font-size: 1rem;">
+                <thead>
+                  <tr>
+                    <th colspan="3">myapp_profile</th>
+                  </tr>
+                  <tr>
+                    <th>user_id</th>
+                    <th>status</th>
+                    <th>last_sync</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>32</td>
+                    <td>Happy!</td>
+                    <td>2020-08-17T19:45:05.481516</td>
+                  </tr>
+                  <tr>
+                    <td>97</td>
+                    <td>Bored...</td>
+                    <td>2020-08-15T12:34:56.123456</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <section data-auto-animate>
+            <h2>Databases</h2>
+
+            <table
+              data-id="table"
+              style="font-family: monospace; font-size: 1.5rem;">
+              <thead>
+                <tr>
+                  <th colspan="3">myapp_profile</th>
+                </tr>
+                <tr>
+                  <th>user_id</th>
+                  <th>status</th>
+                  <th>last_sync</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>32</td>
+                  <td>Happy!</td>
+                  <td>2020-08-17T19:45:05.481516</td>
+                </tr>
+                <tr>
+                  <td>97</td>
+                  <td>Bored...</td>
+                  <td>2020-08-15T12:34:56.123456</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+          <section data-auto-animate>
+            <h2>
+              <span data-id="user-config" style="font-size: inherit;">User Config</span>
+              <span data-id="json" style="font-size: 0;"> (JSON)</span> in Databases
+            </h2>
+
+            <table
+              data-id="table"
+              style="font-family: monospace; font-size: 1.5rem;">
+              <thead>
+                <tr>
+                  <th colspan="4">myapp_profile</th>
+                </tr>
+                <tr>
+                  <th>user_id</th>
+                  <th>status</th>
+                  <th>last_sync</th>
+                  <th>dark_mode</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>32</td>
+                  <td>Happy!</td>
+                  <td>2020-08-17T19:45:05.481516</td>
+                  <td>1</td>
+                </tr>
+                <tr>
+                  <td>97</td>
+                  <td>Bored...</td>
+                  <td>2020-08-15T12:34:56.123456</td>
+                  <td>0</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+          <section data-auto-animate>
+            <h2>
+              <span data-id="user-config" style="font-size: inherit;">User Config</span>
+              <span data-id="json" style="font-size: 0;"> (JSON)</span> in Databases
+            </h2>
+
+            <table
+              data-id="table"
+              style="font-family: monospace; font-size: 1.45rem;">
+              <thead>
+                <tr>
+                  <th colspan="5">myapp_profile</th>
+                </tr>
+                <tr>
+                  <th>user_id</th>
+                  <th>status</th>
+                  <th>last_sync</th>
+                  <th>dark_mode</th>
+                  <th>font_size</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>32</td>
+                  <td>Happy!</td>
+                  <td>2020-08-17T19:45:05.481516</td>
+                  <td>1</td>
+                  <td>1</td>
+                </tr>
+                <tr>
+                  <td>97</td>
+                  <td>Bored...</td>
+                  <td>2020-08-15T12:34:56.123456</td>
+                  <td>0</td>
+                  <td>3</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+          <section data-auto-animate>
+            <h2>
+              <span data-id="user-config" style="font-size: inherit;">User Config</span>
+              <span data-id="json" style="font-size: 0;"> (JSON)</span> in Databases
+            </h2>
+
+            <table
+              data-id="table"
+              style="font-family: monospace; font-size: 1.2rem;">
+              <thead>
+                <tr>
+                  <th colspan="6">myapp_profile</th>
+                </tr>
+                <tr>
+                  <th>user_id</th>
+                  <th>status</th>
+                  <th>last_sync</th>
+                  <th>dark_mode</th>
+                  <th>font_size</th>
+                  <th>color_accent</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>32</td>
+                  <td>Happy!</td>
+                  <td>2020-08-17T19:45:05.481516</td>
+                  <td>1</td>
+                  <td>1</td>
+                  <td>blue</td>
+                </tr>
+                <tr>
+                  <td>97</td>
+                  <td>Bored...</td>
+                  <td>2020-08-15T12:34:56.123456</td>
+                  <td>0</td>
+                  <td>3</td>
+                  <td>red</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+          <section data-auto-animate>
+            <h2>
+              <span data-id="user-config" style="font-size: inherit;">User Config</span>
+              <span data-id="json" style="font-size: 0;"> (JSON)</span> in Databases
+            </h2>
+
+            <table
+              data-id="table"
+              style="font-family: monospace; font-size: 1.35rem;">
+              <thead>
+                <tr>
+                  <th colspan="4">myapp_profile</th>
+                </tr>
+                <tr>
+                  <th>user_id</th>
+                  <th>status</th>
+                  <th>last_sync</th>
+                  <th>config</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>32</td>
+                  <td>Happy!</td>
+                  <td>2020-08-17T19:45:05.481516</td>
+                  <td>1;1;blue</td>
+                </tr>
+                <tr>
+                  <td>97</td>
+                  <td>Bored...</td>
+                  <td>2020-08-15T12:34:56.123456</td>
+                  <td>0;3;red</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+          <section data-auto-animate>
+            <h2>
+              <span data-id="user-config" style="font-size: 0;">User Config</span>
+              <span data-id="json" style="font-size: inherit;">JSON</span> in (SQL) Databases
+            </h2>
+
+            <table
+              style="font-family: monospace; font-size: 1.35rem;">
+              <thead>
+                <tr>
+                  <th colspan="4">myapp_profile</th>
+                </tr>
+                <tr>
+                  <th>user_id</th>
+                  <th>status</th>
+                  <th>last_sync</th>
+                  <th>config</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>32</td>
+                  <td>Happy!</td>
+                  <td>2020-08-17T19:45:05.481516</td>
+                  <td>
+                    <pre style="width: 100%;"><code data-trim>
+                      {
+                        "dark_mode": true,
+                        "font_size": 1,
+                        "color_scheme": "blue"
+                      }</pre></code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>97</td>
+                  <td>Bored...</td>
+                  <td>2020-08-15T12:34:56.123456</td>
+                  <td>
+                    <pre style="width: 100%;"><code data-trim>
+                      {
+                        "dark_mode": false,
+                        "font_size": 3,
+                        "color_scheme": "red"
+                      }</pre></code>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+          <section data-auto-animate>
+            <h2>
+              <span data-id="user-config" style="font-size: 0;">User Config</span>
+              <span data-id="json" style="font-size: inherit;">JSON</span> in (SQL) Databases
+            </h2>
+
+            <table
+              style="font-family: monospace; font-size: 1.3rem;">
+              <thead>
+                <tr>
+                  <th colspan="4">myapp_profile</th>
+                </tr>
+                <tr>
+                  <th>user_id</th>
+                  <th>status</th>
+                  <th>last_sync</th>
+                  <th>config</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>32</td>
+                  <td>Happy!</td>
+                  <td>2020-08-17T19:45:05.481516</td>
+                  <td>{"dark_mode": true, "font_size": 1, "color_scheme": "blue"}</td>
+                </tr>
+                <tr>
+                  <td>97</td>
+                  <td>Bored...</td>
+                  <td>2020-08-15T12:34:56.123456</td>
+                  <td>{"dark_mode": false, "font_size": 3, "color_scheme": "red"}</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </section>
+        <section>
+          <section data-auto-animate>
+            <h2><code>JSONField</code></h2>
+          </section>
+          <section data-auto-animate>
+            <h2><code>JSONField</code></h2>
+            <p>How does it work?</p>
+          </section>
+          <section data-auto-animate>
+            <h2><code>JSONField</code></h2>
+            <p>How does it work?</p>
+
+            <pre data-id="code-model" style="font-size: 1.25rem;"><code data-line-numbers data-trim class="python">
+              class Profile(models.Model):
+                  ...
+                  config = models.JSONField()
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2><code>JSONField</code></h2>
+            <p data-id="how">How does it work?</p>
+
+            <pre data-id="code-model" style="font-size: 1.25rem;"><code data-line-numbers data-trim class="python">
+              class Profile(models.Model):
+                  ...
+                  config = models.JSONField()
+            </code></pre>
+
+            <pre data-id="code-shell" style="font-size: 1.15rem;"><code data-line-numbers="1|2|3|4|5-6" data-trim class="python">
+              >>> config = {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+              >>> profile = Profile.objects.create(config=config)
+              >>> # Some time later...
+              >>> saved_profile = Profile.objects.get(id=profile.id)
+              >>> saved_profile.config == config
+              True
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2><code>JSONField</code></h2>
+            <p data-id="how">How does it work<span data-id="background" style="font-size: 0;">... in the background</span>?</p>
+
+            <pre data-id="code-shell" style="font-size: 1.15rem;"><code data-line-numbers="7-8|9|10|11-12" data-trim class="python">
+              >>> config = {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+              >>> profile = Profile.objects.create(config=config)
+              >>> # Some time later...
+              >>> saved_profile = Profile.objects.get(id=profile.id)
+              >>> saved_profile.config == config
+              True
+              >>> saved_profile.config
+              {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+              >>> saved_profile.config['font_size'] = 3
+              >>> saved_profile.save()
+              >>> Profile.objects.get(id=saved_profile.id).config['font_size']
+              3
+            </code></pre>
+          </section>
+        </section>
+        <section>
+          <section data-auto-animate>
+            <h2><code>JSONField</code></h2>
+            <p data-id="how">How does it work<span data-id="background" style="font-size: inherit;">... in the background</span>?</p>
+
+            <pre data-id="code-shell" style="font-size: 1.15rem;"><code data-line-numbers="11-12" data-trim class="python">
+              >>> config = {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+              >>> profile = Profile.objects.create(config=config)
+              >>> # Some time later...
+              >>> saved_profile = Profile.objects.get(id=profile.id)
+              >>> saved_profile.config == config
+              True
+              >>> saved_profile.config
+              {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+              >>> saved_profile.config['font_size'] = 3
+              >>> saved_profile.save()
+              >>> Profile.objects.get(id=saved_profile.id).config['font_size']
+              3
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2><code>JSONField</code></h2>
+            <p data-id="how">How does it work<span data-id="background" style="font-size: inherit;">... in the background</span>?</p>
+
+            <pre data-id="code-shell" style="font-size: 1.15rem;"><code data-line-numbers="1|2" data-trim class="python">
+              >>> config = {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+              >>> profile = Profile.objects.create(config=config)
+              >>> # Some time later...
+              >>> saved_profile = Profile.objects.get(id=profile.id)
+              >>> saved_profile.config
+              {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2><code>JSONField</code></h2>
+            <p data-id="how">How does it work<span data-id="background" style="font-size: inherit;">... in the background</span>?</p>
+
+            <pre data-id="code-shell" style="font-size: 1.15rem;"><code data-line-numbers="2-3|2|3" data-trim class="python">
+              >>> config = {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+              >>> profile = Profile(config=config)
+              >>> profile.save()
+              >>> # Some time later...
+              >>> saved_profile = Profile.objects.get(id=profile.id)
+              >>> saved_profile.config
+              {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2><code>JSONField</code></h2>
+            <p data-id="how">How does it work<span data-id="background" style="font-size: inherit;">... in the background</span>?</p>
+
+            <pre data-id="code-shell" style="font-size: 1.15rem;"><code data-line-numbers="4-5" data-trim class="python">
+              >>> config = {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+              >>> profile = Profile(config=config)
+              >>> profile.save()
+              >>> # Turn it into a JSON-encoded data!
+              >>> '{"dark_mode": true, "font_size": 2, "color_scheme": "pink"}'
+              >>> saved_profile = Profile.objects.get(id=profile.id)
+              >>> saved_profile.config
+              {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2><code>JSONField</code></h2>
+            <p data-id="how">How does it work<span data-id="background" style="font-size: inherit;">... in the background</span>?</p>
+
+            <pre data-id="code-shell" style="font-size: 1.15rem;"><code data-line-numbers="6-10|11" data-trim class="python">
+              >>> config = {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+              >>> profile = Profile(config=config)
+              >>> profile.save()
+              >>> # Turn it into a JSON-encoded data!
+              >>> '{"dark_mode": true, "font_size": 2, "color_scheme": "pink"}'
+              >>> # Eventually, it will be:
+              >>> """
+              INSERT INTO myapp_profile
+              VALUES (42, '{"dark_mode": true, "font_size": 2, "color_scheme": "pink"}')
+              """
+              >>> saved_profile = Profile.objects.get(id=profile.id)
+              >>> saved_profile.config
+              {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2><code>JSONField</code></h2>
+            <p data-id="how">How does it work<span data-id="background" style="font-size: inherit;">... in the background</span>?</p>
+
+            <pre data-id="code-shell" style="font-size: 1.15rem;"><code data-line-numbers="12" data-trim class="python">
+              >>> config = {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+              >>> profile = Profile(config=config)
+              >>> profile.save()
+              >>> # Turn it into a JSON-encoded data!
+              >>> '{"dark_mode": true, "font_size": 2, "color_scheme": "pink"}'
+              >>> # Eventually, it will be:
+              >>> """
+              INSERT INTO myapp_profile
+              VALUES (42, '{"dark_mode": true, "font_size": 2, "color_scheme": "pink"}')
+              """
+              >>> saved_profile = Profile.objects.get(id=profile.id)
+              >>> """SELECT id, config FROM myapp_profile WHERE id = 42"""
+              >>> saved_profile.config
+              {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2><code>JSONField</code></h2>
+            <p data-id="how">How does it work<span data-id="background" style="font-size: inherit;">... in the background</span>?</p>
+
+            <pre data-id="code-shell" style="font-size: 1.15rem;"><code data-line-numbers="13|13-15" data-trim class="python">
+              >>> config = {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+              >>> profile = Profile(config=config)
+              >>> profile.save()
+              >>> # Turn it into a JSON-encoded data!
+              >>> '{"dark_mode": true, "font_size": 2, "color_scheme": "pink"}'
+              >>> # Eventually, it will be:
+              >>> """
+              INSERT INTO myapp_profile
+              VALUES (42, '{"dark_mode": true, "font_size": 2, "color_scheme": "pink"}')
+              """
+              >>> saved_profile = Profile.objects.get(id=profile.id)
+              >>> """SELECT id, config FROM myapp_profile WHERE id = 42"""
+              >>> '{"dark_mode": true, "font_size": 2, "color_scheme": "pink"}'
+              >>> saved_profile.config
+              {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+            </code></pre>
+          </section>
+        </section>
+        <section>
+          <section data-auto-animate>
+            <h2>Python's <code>json</code> library</h2>
+          </section>
+          <section data-auto-animate>
+            <h2>Python's <code>json</code> library</h2>
+
+            <pre data-id="code-shell" style="font-size: 1.15rem;"><code data-line-numbers="1|2|3|4-5|6|7-8|9-10" data-trim class="python">
+              >>> import json
+              >>> config = {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+              >>> encoded = json.dumps(config)
+              >>> encoded
+              '{"dark_mode": true, "font_size": 2, "color_scheme": "pink"}'
+              >>> decoded = json.loads(encoded)
+              >>> decoded
+              {'dark_mode': True, 'font_size': 2, 'color_scheme': 'pink'}
+              >>> decoded == config
+              True
+            </code></pre>
+          </section>
+        </section>
+        <section>
+          <section data-auto-animate>
+            <h2>A very minimal <code>JSONField</code></h2>
+          </section>
+          <section data-auto-animate>
+            <h2>A very minimal <code>JSONField</code></h2>
+
+            <pre data-id="code-jsonfield" style="font-size: 1.15rem;"><code data-line-numbers="1-9" data-trim class="python">
+              class JSONField(TextField):
+                  def get_prep_value(self, value):
+                      if value is None:
+                          return value
+                      return json.dumps(value)
+                  def from_db_value(self, value, expression, connection):
+                      if value is None:
+                          return value
+                      return json.loads(value)
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>A very minimal <code>JSONField</code></h2>
+
+            <pre data-id="code-jsonfield" style="font-size: 1.15rem;"><code data-line-numbers="1-19" data-trim class="python">
+              class JSONField(TextField):
+
+                  def get_prep_value(self, value):
+
+                      if value is None:
+
+                          return value
+
+                      return json.dumps(value)
+
+                  def from_db_value(self, value, expression, connection):
+
+                      if value is None:
+
+                          return value
+
+                      return json.loads(value)
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>A very minimal <code>JSONField</code></h2>
+
+            <pre data-id="code-jsonfield" style="font-size: 1.15rem;"><code data-line-numbers="1-12|1|4-7|5-6|7|9-12|10-11|12" data-trim class="python">
+              class JSONField(TextField):
+                  """A very minimal JSONField."""
+
+                  def get_prep_value(self, value):
+                      if value is None:
+                          return value
+                      return json.dumps(value)
+
+                  def from_db_value(self, value, expression, connection):
+                      if value is None:
+                          return value
+                      return json.loads(value)
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>A very minimal <code>JSONField</code></h2>
+
+            <pre data-id="code-jsonfield" style="font-size: 1.15rem;"><code data-line-numbers="4|10|15|1-15" data-trim class="python">
+              class JSONField(TextField):
+                  """A very minimal JSONField."""
+
+                  def __init__(self, encoder=None, decoder=None):
+                      ...
+
+                  def get_prep_value(self, value):
+                      if value is None:
+                          return value
+                      return json.dumps(value, cls=self.encoder)
+
+                  def from_db_value(self, value, expression, connection):
+                      if value is None:
+                          return value
+                      return json.loads(value, cls=self.decoder)
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2 data-id="note">
+              The thing about <span data-id="emptiness" style="font-size: inherit;">emptiness</span>
+              <span data-id="empty-values" style="font-size: 0;">empty values</span></h2>
+          </section>
+          <section data-auto-animate>
+            <h2 data-id="note">
+              The thing about<span data-id="emptiness" style="font-size: 0;"> emptiness</span>
+              <span data-id="empty-values" style="font-size: inherit;"> empty values</span></h2>
+          </section>
+          <section data-auto-animate>
+            <h2 data-id="note">The thing about empty values</h2>
+            <ul>
+              <li><code style="color: skyblue;">None</code> ≡ <code style="color: deeppink;">NULL</code></li>
+              <li class="fragment"><code style="color: gold;">''</code> &gt; <code style="color: deeppink;">NULL</code></li>
+            </ul>
+            <p class="fragment">What about...</p>
+            <p>
+              <code class="fragment" style="color: palegreen">  ""  </code>
+              <code class="fragment" style="color: palegreen">  {}  </code>
+              <code class="fragment" style="color: palegreen">  []  </code>
+              <code class="fragment" style="color: palegreen">  null  </code>
+            </p>
+          </section>
+          <section data-auto-animate>
+            <h2 data-id="note">The thing about empty values</h2>
+            <ul>
+              <li><code style="color: skyblue;">None</code> ≡ <code style="color: deeppink;">NULL</code></li>
+              <li><code style="color: gold;">''</code> &gt; <code style="color: deeppink;">NULL</code></li>
+            </ul>
+            <p>What about...</p>
+            <p>
+              <code style="color: chartreuse">  '""'  </code>
+              <code style="color: chartreuse">  '{}'  </code>
+              <code style="color: chartreuse">  '[]'  </code>
+              <code style="color: chartreuse">  'null'  </code>
+            </p>
+          </section>
+          <section data-auto-animate>
+            <h2>Comparison of literals</h2>
+
+            <table
+              data-id="literal-comparison"
+              class="center"
+              style="font-family: monospace; font-size: 0.85em; width: 100%;">
+              <thead>
+                <tr>
+                  <th>Python</th>
+                  <th>JSON</th>
+                  <th>SQL</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>'', ""</td>
+                  <td>""</td>
+                  <td>'""'</td>
+                </tr>
+                <tr>
+                  <td>{}</td>
+                  <td>{}</td>
+                  <td>'{}'</td>
+                </tr>
+                <tr>
+                  <td>[]</td>
+                  <td>[]</td>
+                  <td>'[]'</td>
+                </tr>
+                <tr class="fragment" data-fragment-index="1">
+                  <td class="fragment" data-fragment-index="1">None</td>
+                  <td class="fragment" data-fragment-index="2">
+                    <span class="fragment fade-out" data-fragment-index="4">null</span>
+                  </td>
+                  <td class="fragment" data-fragment-index="3">
+                    <span class="fragment fade-out" data-fragment-index="4">'null'</span
+                      ><span class="fragment fade-in" data-fragment-index="4">&nbsp;NULL&nbsp;</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <span class="fragment fade-in" data-fragment-index="7">
+                      <span class="fragment fade-out" data-fragment-index="8">Value('null')</span></span
+                      ><span class="fragment fade-in" data-fragment-index="8"
+                      >None</span>
+                  </td>
+                  <td class="fragment" data-fragment-index="5">null</td>
+                  <td class="fragment" data-fragment-index="6">'null'</td>
+                </tr>
+              </tbody>
+              <table
+                class="center fragment"
+                data-fragment-index="9"
+                style="font-family: monospace; font-size: 0.5em; width: 100%;"
+              >
+                <tbody>
+                  <tr>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                  </tr>
+                  <tr>
+                    <td>{'something': None}</td>
+                    <td>{"something": null}</td>
+                    <td>'{"something": null}'</td>
+                  </tr>
+                  <tr>
+                    <td>[None]</td>
+                    <td>[null]</td>
+                    <td>'[null]'</td>
+                  </tr>
+                </tbody>
+              </table>
+            </table>
+          </section>
+        </section>
+        <section>
+          <section data-auto-animate>
+            <h2>Differences in the backends</h2>
+          </section>
+          <section data-auto-animate>
+            <h2>Differences in the backends</h2>
+
+            <pre data-id="code-jsonfield" style="font-size: 1.15rem;"><code data-line-numbers="4-11|6|7|8|9|1-11" data-trim class="python">
+              class JSONField(TextField):
+                  ...
+
+                  def db_type(self, connection):
+                      db_types = {
+                          "mysql": "json",
+                          "oracle": "nclob",
+                          "postgresql": "jsonb",
+                          "sqlite": "text",
+                      }
+                      return db_types[connection.vendor]
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>Differences in the backends</h2>
+
+            <pre data-id="code-jsonfield" style="font-size: 1.15rem;"><code data-line-numbers="4-11|5|6-10|11" data-trim class="python">
+              class JSONField(TextField):
+                  ...
+
+                  def db_check(self, connection):
+                      params = self.db_type_parameters(connection)
+                      if connection.vendor == "mysql":
+                          if (
+                              connection.mysql_is_mariadb and
+                              connection.mysql_version < (10, 4, 3)
+                          ):
+                              return "JSON_VALID(`%(column)s`)" % params
+                      ...
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>Differences in the backends</h2>
+
+            <pre data-id="code-jsonfield" style="font-size: 1.15rem;"><code data-line-numbers="6-7|8-12|13" data-trim class="python">
+              class JSONField(TextField):
+                  ...
+
+                  def db_check(self, connection):
+                      ...
+                      if connection.vendor == "oracle":
+                          return "%(qn_column)s IS JSON" % params
+                      if connection.vendor == "sqlite":
+                          return (
+                            '(JSON_VALID("%(column)s") '
+                            'OR "%(column)s" IS NULL)' % params
+                          )
+                      return None
+            </code></pre>
+          </section>
+        </section>
+        <section>
+          <section data-auto-animate>
+            <h2>What else?</h2>
+          </section>
+          <section data-auto-animate>
+            <h2>Querying</h2>
+          </section>
+          <section data-auto-animate>
+            <h2>Querying</h2>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(some_numeric_field=3)
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... WHERE some_numeric_field = 3;
+            </code></pre>
+
+            <pre><code data-trim class="fragment python">
+              >>> MyModel.objects.filter(some_numeric_field__gte=3)
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... WHERE some_numeric_field >= 3;
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>Lookups</h2>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(some_numeric_field=3)
+            </code></pre>
+
+            <pre><code data-trim class="sql">
+              SELECT ... WHERE some_numeric_field = 3;
+            </code></pre>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(some_numeric_field__gte=3)
+            </code></pre>
+
+            <pre><code data-trim class="sql">
+              SELECT ... WHERE some_numeric_field >= 3;
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>Lookups</h2>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(some_numeric_field__exact=3)
+            </code></pre>
+
+            <pre><code data-trim class="sql">
+              SELECT ... WHERE some_numeric_field = 3;
+            </code></pre>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(some_numeric_field__gte=3)
+            </code></pre>
+
+            <pre><code data-trim class="sql">
+              SELECT ... WHERE some_numeric_field >= 3;
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>Transforms</h2>
+          </section>
+          <section data-auto-animate>
+            <h2>Transforms</h2>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(some_date_field__year=2020)
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... WHERE some_date_field
+              BETWEEN '2020-01-01' AND '2020-12-31';
+            </code></pre>
+
+            <pre><code data-trim class="fragment python">
+              >>> MyModel.objects.filter(some_date_field__year__gte=2020)
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... WHERE some_date_field >= '2020-01-01';
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>Transforms</h2>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(some_date_field__year__exact=2020)
+            </code></pre>
+
+            <pre><code data-trim class="sql">
+              SELECT ... WHERE some_date_field
+              BETWEEN '2020-01-01' AND '2020-12-31';
+            </code></pre>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(some_date_field__year__gte=2020)
+            </code></pre>
+
+            <pre><code data-trim class="sql">
+              SELECT ... WHERE some_date_field >= '2020-01-01';
+            </code></pre>
+          </section>
+        </section>
+        <section>
+          <section data-auto-animate>
+            <h2>JSONField Transforms</h2>
+          </section>
+          <section data-auto-animate>
+            <h2>JSONField Transforms</h2>
+
+            <pre><code data-trim class="json">
+              {
+                "name": "Sage",
+                "age": 21
+              }
+            </code></pre>
+
+            <pre><code data-trim class="fragment python">
+              >>> MyModel.objects.filter(some_json_field__name='Sage')
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... -- PostgreSQL
+              WHERE some_json_field -> 'name' = 'Sage';
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... -- SQLite
+              WHERE JSON_EXTRACT(some_json_field, '$.name') = 'Sage';
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... -- MySQL/MariaDB
+              WHERE JSON_UNQUOTE(
+                JSON_EXTRACT(some_json_field, '$.name')) = 'Sage';
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... -- Oracle
+              WHERE JSON_VALUE(some_json_field, '$.name') = 'Sage';
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>JSONField Transforms</h2>
+
+            <pre><code data-trim class="json">
+              {
+                "name": "Sage",
+                "age": 21,
+                "pets": [
+                  {"name": "Bagol", "species": "cat"}
+                ]
+              }
+            </code></pre>
+
+            <pre><code data-trim class="fragment python">
+              >>> MyModel.objects.filter(
+                      some_json_field__pets__0__name='Bagol')
+            </code></pre>
+
+            <pre><code data-trim class="fragment pgsql">
+              SELECT ... -- PostgreSQL
+              WHERE some_json_field #> {'pets', '0', 'name'} = 'Bagol';
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... -- SQLite
+              WHERE JSON_EXTRACT(
+                some_json_field, '$.pets[0].name') = 'Bagol';
+            </code></pre>
+          </section>
+        </section>
+        <section>
+          <section data-auto-animate>
+            <h2>Still about empty values...</h2>
+          </section>
+          <section data-auto-animate>
+            <h2>Still about empty values...</h2>
+
+            <pre><code data-trim class="json">
+              {
+                "name": "Sage",
+                "age": 21
+              }
+            </code></pre>
+
+            <pre><code data-trim class="fragment json">
+              {
+                "name": "Sage",
+                "age": 21,
+                "partner": null
+              }
+            </code></pre>
+
+            <pre><code data-trim class="fragment python">
+              >>> MyModel.objects.filter(
+                      some_json_field__partner=None)
+            </code></pre>
+
+            <pre><code data-trim class="fragment python">
+              >>> MyModel.objects.filter(
+                      some_json_field__partner__isnull=True)
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>Still about empty values...</h2>
+
+            <pre><code data-trim class="json">
+              {
+                "name": "Sage",
+                "age": 21
+              }
+            </code></pre>
+
+            <pre><code data-trim class="json">
+              {
+                "name": "Sage",
+                "age": 21,
+                "partner": null
+              }
+            </code></pre>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(
+                      some_json_field__partner__exact=None)
+            </code></pre>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(
+                      some_json_field__partner__isnull=True)
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>Still about empty values...</h2>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(
+                      some_json_field__partner__exact=None)
+            </code></pre>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(
+                      some_json_field__partner__isnull=True)
+            </code></pre>
+
+            <pre><code data-trim class="sql">
+              SELECT ... -- SQLite
+              WHERE JSON_TYPE(
+                some_json_field, '$.pets[0].name') = 'null';
+            </code></pre>
+          </section>
+        </section>
+        <section>
+          <section data-auto-animate>
+            <h2>JSONField Lookups</h2>
+          </section>
+          <section data-auto-animate>
+            <h2>JSONField Lookups</h2>
+            <p>Containment</p>
+            <pre><code data-id="json-data" data-trim class="fragment json">
+              {
+                "name": "Sage",
+                "age": 21,
+                "pets": [
+                  {"name": "Bagol", "species": "cat"}
+                ]
+              }
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>JSONField Lookups</h2>
+            <p>Containment</p>
+            <pre><code data-id="json-data" data-trim class="json">
+              {
+                "name": "Sage",
+                "age": 21,
+                "pets": [
+                  {"name": "Bagol", "species": "cat"},
+                  {"name": "Goldy", "species": "goldfish"}
+                ]
+              }
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>JSONField Lookups</h2>
+            <p>Containment</p>
+            <pre><code data-id="json-data" data-trim class="json">
+              {
+                "name": "Sage",
+                "age": 21,
+                "pets": [
+                  {"name": "Bagol", "species": "cat"},
+                  {"name": "Goldy", "species": "goldfish"}
+                ]
+              }
+            </code></pre>
+
+            <pre><code data-id="query" data-trim class="python">
+              >>> MyModel.objects.filter(
+                      some_json_field__contains={
+                          "age": 21,
+                          "pets": [{"species": "goldfish"}]
+                      }
+                  )
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>JSONField Lookups</h2>
+            <p>Containment</p>
+
+            <pre><code data-id="query" data-trim class="python">
+              >>> MyModel.objects.filter(
+                      some_json_field__contains={
+                          "age": 21,
+                          "pets": [{"species": "goldfish"}]
+                      }
+                  )
+            </code></pre>
+
+            <pre><code data-trim class="fragment pgsql">
+              SELECT ... -- PostgreSQL
+              WHERE some_json_field @> '{"age": 21, ...}';
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... -- MySQL, MariaDB
+              WHERE JSON_CONTAINS(some_json_field, '{"age": 21, ...}');
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>JSONField Lookups</h2>
+            <p>Containment</p>
+            <pre><code data-id="json-data" data-trim class="json">
+              {
+                "name": "Sage",
+                "age": 21
+              }
+            </code></pre>
+
+            <pre><code data-id="query" data-trim class="python">
+              >>> MyModel.objects.filter(
+                      some_json_field__contained_by={
+                          "age": 21,
+                          "name": "Sage",
+                          "pets": [
+                            {"name": "Bagol", "species": "cat"},
+                            {"name": "Goldy", "species": "goldfish"}
+                          ]
+                      }
+                  )
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>JSONField Lookups</h2>
+            <p>Containment</p>
+
+            <pre><code data-id="query" data-trim class="python">
+              >>> MyModel.objects.filter(
+                      some_json_field__contained_by={
+                          "age": 21,
+                          "name": "Sage",
+                          "pets": [
+                            {"name": "Bagol", "species": "cat"},
+                            {"name": "Goldy", "species": "goldfish"}
+                          ]
+                      }
+                  )
+            </code></pre>
+
+            <pre><code data-trim class="fragment pgsql">
+              SELECT ... -- PostgreSQL
+              WHERE some_json_field <@ '{"age": 21, ...}';
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... -- MySQL, MariaDB
+              WHERE JSON_CONTAINS('{"age": 21, ...}', some_json_field);
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>JSONField Lookups</h2>
+            <p>Key existence</p>
+          </section>
+          <section data-auto-animate>
+            <h2>JSONField Lookups</h2>
+            <p>Key existence</p>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(some_json_field__has_key='pets')
+            </code></pre>
+
+            <pre><code data-trim class="fragment pgsql">
+              SELECT ... -- PostgreSQL
+              WHERE some_json_field ? 'pets';
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... -- MySQL, MariaDB
+              WHERE JSON_CONTAINS_PATH(some_json_field, 'one', '$.pets');
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... -- Oracle
+              WHERE JSON_EXISTS(some_json_field, '$.pets');
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... -- SQLite
+              WHERE JSON_TYPE(some_json_field, '$.pets') IS NOT NULL;
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>JSONField Lookups</h2>
+            <p>Key existence</p>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(
+                      some_json_field__has_keys=['pets', 'age'])
+            </code></pre>
+
+            <pre><code data-trim class="fragment pgsql">
+              SELECT ... -- PostgreSQL
+              WHERE some_json_field ?& {'pets', 'age'};
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... -- MySQL, MariaDB
+              WHERE JSON_CONTAINS_PATH(
+                some_json_field, 'all', '$.pets', '$.age');
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>JSONField Lookups</h2>
+            <p>Key existence</p>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(
+                      some_json_field__has_keys=['pets', 'age'])
+            </code></pre>
+
+            <pre><code data-trim class="sql">
+              SELECT ... -- MySQL, MariaDB
+              WHERE JSON_CONTAINS_PATH(
+                some_json_field, 'all', '$.pets', '$.age');
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... -- Oracle
+              WHERE (
+                JSON_EXISTS(some_json_field, '$.pets') AND
+                JSON_EXISTS(some_json_field, '$.age')
+              );
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... -- SQLite
+              WHERE (
+                JSON_TYPE(some_json_field, '$.pets') IS NOT NULL AND
+                JSON_TYPE(some_json_field, '$.age') IS NOT NULL
+              );
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>JSONField Lookups</h2>
+            <p>Key existence</p>
+
+            <pre><code data-trim class="sql">
+              SELECT ... -- MySQL, MariaDB
+              WHERE (
+                JSON_CONTAINS_PATH(some_json_field, 'one', '$.pets') AND
+                JSON_CONTAINS_PATH(some_json_field, 'one', '$.age')
+              );
+            </code></pre>
+
+            <pre><code data-trim class="sql">
+              SELECT ... -- Oracle
+              WHERE (
+                JSON_EXISTS(some_json_field, '$.pets') AND
+                JSON_EXISTS(some_json_field, '$.age')
+              );
+            </code></pre>
+
+            <pre><code data-trim class="sql">
+              SELECT ... -- SQLite
+              WHERE (
+                JSON_TYPE(some_json_field, '$.pets') IS NOT NULL AND
+                JSON_TYPE(some_json_field, '$.age') IS NOT NULL
+              );
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>JSONField Lookups</h2>
+            <p>Key existence</p>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(
+                      some_json_field__has_any_keys=['pets', 'age'])
+            </code></pre>
+
+            <pre><code data-trim class="fragment pgsql">
+              SELECT ... -- PostgreSQL
+              WHERE some_json_field ?| {'pets', 'age'};
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... -- MySQL, MariaDB
+              WHERE JSON_CONTAINS_PATH(
+                some_json_field, 'one', '$.pets', '$.age');
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>JSONField Lookups</h2>
+            <p>Key existence</p>
+
+            <pre><code data-trim class="python">
+              >>> MyModel.objects.filter(
+                      some_json_field__has_any_keys=['pets', 'age'])
+            </code></pre>
+
+            <pre><code data-trim class="sql">
+              SELECT ... -- MySQL, MariaDB
+              WHERE JSON_CONTAINS_PATH(
+                some_json_field, 'one', '$.pets', '$.age');
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... -- Oracle
+              WHERE (
+                JSON_EXISTS(some_json_field, '$.pets') OR
+                JSON_EXISTS(some_json_field, '$.age')
+              );
+            </code></pre>
+
+            <pre><code data-trim class="fragment sql">
+              SELECT ... -- SQLite
+              WHERE (
+                JSON_TYPE(some_json_field, '$.pets') IS NOT NULL OR
+                JSON_TYPE(some_json_field, '$.age') IS NOT NULL
+              );
+            </code></pre>
+          </section>
+          <section data-auto-animate>
+            <h2>JSONField Lookups</h2>
+            <p>Key existence</p>
+
+            <pre><code data-trim class="sql">
+              SELECT ... -- MySQL, MariaDB
+              WHERE (
+                JSON_CONTAINS_PATH(some_json_field, 'one', '$.pets') OR
+                JSON_CONTAINS_PATH(some_json_field, 'one', '$.age')
+              );
+            </code></pre>
+
+            <pre><code data-trim class="sql">
+              SELECT ... -- Oracle
+              WHERE (
+                JSON_EXISTS(some_json_field, '$.pets') OR
+                JSON_EXISTS(some_json_field, '$.age')
+              );
+            </code></pre>
+
+            <pre><code data-trim class="sql">
+              SELECT ... -- SQLite
+              WHERE (
+                JSON_TYPE(some_json_field, '$.pets') IS NOT NULL OR
+                JSON_TYPE(some_json_field, '$.age') IS NOT NULL
+              );
+            </code></pre>
+          </section>
+        </section>
+        <section>
+          <section data-auto-animate>
+            <h2>Where to go from here?</h2>
+          </section>
+          <section data-auto-animate>
+            <h2>Where to go from here?</h2>
+            <ul class="compact">
+              <li>Optimizations</li>
+              <li class="fragment">Implement unsupported lookups</li>
+              <li class="fragment"><code>JSON</code> schema validation</li>
+            </ul>
+          </section>
+        </section>
+        <section>
+          <section data-auto-animate>
+            <h2>"I only use LTS <span data-id="sad" style="font-size: inherit;">😢</span><span data-id="happy" style="font-size: 0;">😀</span>"</h2>
+          </section>
+          <section data-auto-animate>
+            <h2>"I only use LTS <span data-id="sad" style="font-size: 0;">😢</span><span data-id="happy" style="font-size: inherit;">😀</span>"</h2>
+            <a href="https://github.com/laymonage/django-jsonfield-backport">
+              <code>django-jsonfield-backport</code>
+            </a>
+            <a href="https://pypi.org/project/django-jsonfield-backport">on PyPI</a>
+          </section>
+        </section>
+        <section>
+          <section data-auto-animate>
+            <h1>Thank you!</h1>
+          </section>
+        </section>
+      </div>
+    </div>
+
+    <script src="dist/reveal.js"></script>
+    <script src="plugin/notes/notes.js"></script>
+    <script src="plugin/markdown/markdown.js"></script>
+    <script src="plugin/highlight/highlight.js"></script>
+    <script src="plugin/zoom/zoom.js"></script>
+    <script>
+      // More info about initialization & config:
+      // - https://revealjs.com/initialization/
+      // - https://revealjs.com/config/
+      Reveal.initialize({
+        hash: true,
+
+        // Learn about plugins: https://revealjs.com/plugins/
+        plugins: [ RevealMarkdown, RevealHighlight, RevealNotes, RevealZoom ]
+      });
+      Reveal.configure({ pdfSeparateFragments: false });
+      Reveal.configure({ pdfMaxPagesPerSlide: 1 });
+    </script>
+  </body>
+</html>
